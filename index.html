@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrenAlerta España — Retrasos en tiempo real</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
     --bg:#0a0e1a;--bg2:#111827;--bg3:#1a2235;--border:rgba(99,179,237,0.15);--border2:rgba(99,179,237,0.3);
@@ -12,6 +14,25 @@
     --gray:#6b7280;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
     --mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;
   }
+  
+  /* 2. Paleta para el Modo Claro */
+  body.light-mode {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9;
+    --border: #e2e8f0; --border2: #cbd5e1;
+    --text: #0f172a; --text2: #475569; --text3: #64748b;
+    --accent: #2563eb; --accent2: #3b82f6;
+  }
+
+  /* Estilo del botón flotante */
+  .theme-toggle {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--bg2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 50%; width: 50px; height: 50px; cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15); font-size: 20px; z-index: 9999;
+    transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+  }
+  .theme-toggle:hover { transform: scale(1.1); }
+
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;}
   header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:100;}
@@ -48,8 +69,19 @@
   .section-label{font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;}
   .updated-tag{font-family:var(--mono);font-size:11px;color:var(--text3);display:flex;align-items:center;gap:5px;}
   .train-table{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
-  .train-row{display:grid;grid-template-columns:80px 120px 1fr 1fr 100px;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);align-items:center;transition:background 0.15s;}
-  @media(max-width:800px){.train-row{grid-template-columns:80px 1fr 1fr;}.col-origen,.col-destino{display:none;}}
+  
+  /* 3. Ajustamos la tabla a 6 columnas para las horas */
+  .train-row{display:grid;grid-template-columns:80px 100px 1fr 120px 120px 100px;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);align-items:center;transition:background 0.15s;}
+  
+  /* Media query actualizada para que no desaparezca Origen/Destino */
+  @media(max-width:900px){
+    .train-row { grid-template-columns: 70px 1fr 100px 80px; gap: 6px; padding: 10px 8px; font-size: 11px;}
+    .col-origen, .col-destino { display: block !important; }
+    .col-llegada { display: none; } /* Ocultamos llegada en móvil para ganar espacio */
+    .tipo-badge { padding: 2px 4px; font-size: 9px; }
+    .badge { padding: 2px 6px; font-size: 10px; }
+  }
+  
   .train-row:last-child{border-bottom:none;}
   .train-row:hover:not(.th-row){background:var(--bg3);}
   .th-row{background:var(--bg3);border-bottom:1px solid var(--border2);padding:10px 18px;}
@@ -116,9 +148,17 @@
   .result-label{font-size:12px;color:var(--text3);margin-top:6px;}
   footer{margin-top:4rem;border-top:1px solid var(--border);padding:1.5rem 2rem;text-align:center;font-size:12px;color:var(--text3);font-family:var(--mono);}
   footer a{color:var(--accent2);text-decoration:none;}
+  
+  /* Nuevos estilos para los bloques de horas */
+  .hora-bloque { display: flex; flex-direction: column; font-family: var(--mono); font-size: 12px; }
+  .hora-teorica { color: var(--text3); text-decoration: line-through; font-size: 10px;}
+  .hora-real { color: var(--text); font-weight: 700; }
 </style>
 </head>
 <body>
+
+<button class="theme-toggle" onclick="cambiarTema()" id="btn-tema">🌗</button>
+
 <header>
   <div class="logo">TrenAlerta<span>.es</span></div>
   <div class="live-pill"><div class="live-dot"></div> EN VIVO</div>
@@ -131,7 +171,6 @@
 </nav>
 <main>
 
-  <!-- TIEMPO REAL -->
   <div id="panel-tiempo-real" class="panel active">
     <div class="search-block">
       <div class="search-grid">
@@ -167,12 +206,16 @@
         <button class="chip" onclick="setFiltroSolo(this,'cancelado')">Cancelados</button>
       </div>
     </div>
+    
     <div class="stats-bar">
       <div class="stat-card"><div class="stat-label">Total trenes</div><div class="stat-val" id="st-total">—</div></div>
       <div class="stat-card"><div class="stat-label">Puntuales</div><div class="stat-val green" id="st-ok">—</div></div>
       <div class="stat-card"><div class="stat-label">Retrasados</div><div class="stat-val amber" id="st-ret">—</div></div>
       <div class="stat-card"><div class="stat-label">Retraso medio</div><div class="stat-val red" id="st-avg">—</div></div>
     </div>
+    
+    <div id="mapa-trenes" style="height: 300px; width: 100%; border-radius: 16px; margin-bottom: 20px; border: 1px solid var(--border); z-index: 1;"></div>
+
     <div class="trains-header">
       <span class="section-label">Circulaciones en tiempo real</span>
       <span class="updated-tag"><span class="live-dot" style="background:var(--green)"></span>Actualizado: <span id="ultima-act">—</span></span>
@@ -180,17 +223,17 @@
     <div id="error-banner"></div>
     <div class="train-table">
       <div class="train-row th-row">
-        <div class="col">ID</div>
+        <div class="col">Nº Tren</div>
         <div class="col">Tipo</div>
-        <div class="col col-origen">Origen</div>
-        <div class="col col-destino">Destino</div>
+        <div class="col col-origen">Ruta</div>
+        <div class="col">Salida</div>
+        <div class="col col-llegada">Llegada</div>
         <div class="col">Estado</div>
       </div>
       <div id="lista-trenes"><div class="loading">Cargando datos de Renfe...</div></div>
     </div>
   </div>
 
-  <!-- HISTÓRICO -->
   <div id="panel-historico" class="panel">
     <div class="stats-bar" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat-card"><div class="stat-label">Total trenes</div><div class="stat-val" id="h-total">—</div></div>
@@ -207,7 +250,6 @@
     </div>
   </div>
 
-  <!-- COMPENSACIONES -->
   <div id="panel-compensaciones" class="panel">
     <p style="font-size:14px;color:var(--text2);margin-bottom:1.5rem;max-width:600px;line-height:1.7">
       El <strong style="color:var(--text)">Reglamento (CE) 1371/2007</strong> y la <strong style="color:var(--text)">Ley 16/1987</strong> reconocen los siguientes derechos cuando tu tren llega tarde.
@@ -229,7 +271,6 @@
     </div>
   </div>
 
-  <!-- CALCULADORA -->
   <div id="panel-calculadora" class="panel">
     <div class="calc-wrapper">
       <div class="calc-card">
@@ -266,10 +307,52 @@
 </footer>
 
 <script>
+// --- FUNCIÓN DEL MODO CLARO ---
+function cambiarTema() {
+  document.body.classList.toggle('light-mode');
+  const esClaro = document.body.classList.contains('light-mode');
+  localStorage.setItem('temaTrenalerta', esClaro ? 'claro' : 'oscuro');
+}
+if (localStorage.getItem('temaTrenalerta') === 'claro') {
+  document.body.classList.add('light-mode');
+}
+
 const WORKER_URL = 'https://trenalerta-worker.trenalerta.workers.dev';
 let todosLosTrenes = [];
 let filtroMinRetraso = 0;
 let filtroSoloEstado = '';
+
+// --- INICIALIZAR EL MAPA (Leaflet) ---
+let mapa = L.map('mapa-trenes').setView([40.4168, -3.7038], 6);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(mapa);
+let capaMarcadores = L.layerGroup().addTo(mapa);
+
+function actualizarMapa() {
+  capaMarcadores.clearLayers();
+  todosLosTrenes.forEach(t => {
+    // Si el Worker envía lat y lon, dibujamos el punto
+    if (t.lat && t.lon) { 
+      let marcador = L.circleMarker([t.lat, t.lon], {
+        radius: 6,
+        fillColor: t.retrasoMinutos > 0 ? "#ef4444" : "#22c55e",
+        color: "#fff",
+        weight: 2,
+        fillOpacity: 0.9
+      });
+      marcador.bindPopup(`<div style="font-family:var(--sans)"><b>${t.tipo} ${t.id}</b><br>${t.origen} → ${t.destino}<br>Retraso: ${t.retrasoMinutos} min</div>`);
+      capaMarcadores.addLayer(marcador);
+    }
+  });
+}
+
+function centrarMapa(lat, lon) {
+  if(lat && lon) {
+    mapa.flyTo([lat, lon], 10, { duration: 1.5 });
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // Sube la pantalla al hacer clic
+  }
+}
 
 async function cargarDatos() {
   document.getElementById('lista-trenes').innerHTML = '<div class="loading">Conectando con Renfe...</div>';
@@ -288,6 +371,7 @@ async function cargarDatos() {
     poblarFiltros(data.trenes);
     filtrarTrenes();
     actualizarHistorico(data.stats, data.trenes);
+    actualizarMapa(); // Actualiza los trenes en el mapa
   } catch(err) {
     document.getElementById('error-banner').innerHTML = `<div class="error-banner">⚠ No se pudieron cargar los datos: ${err.message}</div>`;
     document.getElementById('lista-trenes').innerHTML = '<div class="empty-state">Sin datos disponibles</div>';
@@ -326,12 +410,24 @@ function filtrarTrenes() {
   });
   const cont = document.getElementById('lista-trenes');
   if (!lista.length) { cont.innerHTML = '<div class="empty-state">⊘ No hay trenes con estos filtros</div>'; return; }
+  
+  // 6. Nuevo HTML por cada fila de tren, con onclick para el mapa y mostrando las horas
   cont.innerHTML = lista.map(t => `
-    <div class="train-row">
+    <div class="train-row" onclick="centrarMapa(${t.lat}, ${t.lon})" style="cursor:pointer" title="Haz clic para ver en el mapa">
       <div class="col-id">${t.id}</div>
       <div><span class="tipo-badge tipo-${t.tipo in {'AVE':1,'ALVIA':1,'AVLO':1,'AVANT':1,'MD':1,'REGIONAL':1,'EUROMED':1} ? t.tipo : 'other'}">${t.tipo}</span></div>
-      <div class="col-ruta col-origen"><div class="est">${t.origen}</div></div>
-      <div class="col-ruta col-destino"><div class="est">${t.destino}</div></div>
+      <div class="col-ruta">
+        <div class="est" style="color:var(--text);font-weight:600">${t.origen}</div>
+        <div class="est" style="font-size:10px;color:var(--text2)">→ ${t.destino}</div>
+      </div>
+      <div class="hora-bloque">
+        <span class="hora-teorica">${t.salidaTeorica || '--:--'}</span>
+        <span class="hora-real">${t.salidaReal || '--:--'}</span>
+      </div>
+      <div class="hora-bloque col-llegada">
+        <span class="hora-teorica">${t.llegadaTeorica || '--:--'}</span>
+        <span class="hora-real">${t.llegadaReal || '--:--'}</span>
+      </div>
       <div>${badge(t)}</div>
     </div>`).join('');
 }
@@ -369,7 +465,6 @@ function actualizarHistorico(stats, trenes) {
   document.getElementById('h-pct').textContent = Math.round(stats.retrasados/stats.total*100)+'%';
   document.getElementById('h-avg').textContent = stats.retrasoMedioMinutos+' min';
 
-  // Por tipo de tren
   const tipos = {};
   trenes.forEach(t => {
     if (!tipos[t.tipo]) tipos[t.tipo] = {total:0, retrasados:0};
@@ -381,19 +476,16 @@ function actualizarHistorico(stats, trenes) {
     .sort((a,b)=>b[1].retrasados-a[1].retrasados).slice(0,6)
     .map(([tipo,v])=>barRow(tipo,v.retrasados,Math.round(v.retrasados/maxTipo*100),'#f59e0b',`${v.retrasados}/${v.total}`)).join('');
 
-  // Top retrasos
   const top = [...trenes].filter(t=>t.retrasoMinutos>0).sort((a,b)=>b.retrasoMinutos-a.retrasoMinutos).slice(0,6);
   const maxR = top[0]?.retrasoMinutos||1;
   document.getElementById('bars-top').innerHTML = top.map(t=>barRow(`${t.tipo} ${t.id}`,t.retrasoMinutos,Math.round(t.retrasoMinutos/maxR*100),'#ef4444','+'+t.retrasoMinutos+' min')).join('');
 
-  // Orígenes con más retrasos
   const origenes = {};
   trenes.filter(t=>t.retrasoMinutos>0&&t.origen!=='—').forEach(t=>{origenes[t.origen]=(origenes[t.origen]||0)+1;});
   const topOrigen = Object.entries(origenes).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const maxO = topOrigen[0]?.[1]||1;
   document.getElementById('bars-origen').innerHTML = topOrigen.map(([o,v])=>barRow(o,v,Math.round(v/maxO*100),'#3b82f6',v+' trenes')).join('');
 
-  // Destinos con más retrasos
   const destinos = {};
   trenes.filter(t=>t.retrasoMinutos>0&&t.destino!=='—').forEach(t=>{destinos[t.destino]=(destinos[t.destino]||0)+1;});
   const topDest = Object.entries(destinos).sort((a,b)=>b[1]-a[1]).slice(0,6);
@@ -430,7 +522,12 @@ function showPanel(id, btn) {
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('panel-'+id).classList.add('active');
   btn.classList.add('active');
+  
   if (id==='calculadora') calcular();
+  // Truco para que el mapa se redibuje bien al cambiar de pestaña
+  if (id==='tiempo-real') {
+      setTimeout(() => mapa.invalidateSize(), 100);
+  }
 }
 
 cargarDatos();
