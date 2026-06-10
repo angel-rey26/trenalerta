@@ -414,7 +414,7 @@ function filtrarTrenes() {
   // 6. Nuevo HTML por cada fila de tren, con onclick para el mapa y mostrando las horas
   cont.innerHTML = lista.map(t => `
     <div class="train-row" onclick="centrarMapa(${t.lat}, ${t.lon})" style="cursor:pointer" title="Haz clic para ver en el mapa">
-      <div class="col-id">${t.id}</div>
+      <div class="col-id">${t.tipo} ${t.id}</div>
       <div><span class="tipo-badge tipo-${t.tipo in {'AVE':1,'ALVIA':1,'AVLO':1,'AVANT':1,'MD':1,'REGIONAL':1,'EUROMED':1} ? t.tipo : 'other'}">${t.tipo}</span></div>
       <div class="col-ruta">
         <div class="est" style="color:var(--text);font-weight:600">${t.origen}</div>
