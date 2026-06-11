@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrenAlerta España — Retrasos en tiempo real</title>
+<link rel="icon" type="image/png" href="icono.png">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -36,8 +37,6 @@
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;}
   header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:100;}
-  .logo{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent2);}
-  .logo span{color:var(--text2);font-weight:400;}
   .live-pill{display:flex;align-items:center;gap:6px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:var(--green);font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:20px;}
   .live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
@@ -160,7 +159,7 @@
 <button class="theme-toggle" onclick="cambiarTema()" id="btn-tema">🌗</button>
 
 <header>
-  <div class="logo">TrenAlerta<span>.es</span></div>
+  <img src="banner.png" alt="TrenAlerta España" style="height: 35px; width: auto;">
   <div class="live-pill"><div class="live-dot"></div> EN VIVO</div>
 </header>
 <nav>
